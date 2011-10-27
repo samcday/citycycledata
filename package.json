@@ -8,6 +8,7 @@
 	"jsdom": "0.2.8",
 	"mongoose": "2.3.7",
 	"request": "2.1.1",
-	"sugar": "0.9.5"
+	"sugar": "0.9.5",
+	"coffee-script": "1.1.2"
   }
 }
