@@ -103,5 +103,7 @@ scrapeStationList = () ->
             else
                 console.log "Station list scrape complete."
 
+# Note that these are offset by -10 hours to account for the fact that Node runs
+# in GMT time.
 cron.CronJob "0 */10 * * * *", scrapeStations
-cron.CronJob "0 0 0 * * *", scrapeStationList
+cron.CronJob "0 0 14 * * *", scrapeStationList
