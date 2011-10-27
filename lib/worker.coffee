@@ -11,7 +11,7 @@ StationStatus = require "./model/StationStatus"
 
 baseURL = "http://www.citycycle.com.au/service/"
 
-mongoose.connect "mongodb://localhost/citycycledata"
+mongoose.connect process.env.MONGOLAB_URI or "mongodb://localhost/citycycledata"
 
 scrapeStations = () ->
     Station.find {}, ["number"], (err, stations) ->
