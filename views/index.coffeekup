@@ -1,0 +1,295 @@
+script src: "/socket.io/socket.io.js"
+script src: "http://maps.googleapis.com/maps/api/js?sensor=false"
+
+style """
+	html, body {
+		height: 100%;
+		margin: 0;
+		padding: 0;
+	}
+
+	#map_canvas {
+		position: fixed;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100%;
+		z-index: 1;
+	}
+
+	#station_info_pane {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		width: 100%;
+		height: 200px;
+		background-color: white;
+		z-index: 2;
+	}
+
+	.station_marker {
+		width: 20px;
+		height: 32px;
+		background-image: url(/images/marker.png);
+		position: absolute;
+		font-size: 12px;
+		font-family: Times New Roman;
+		font-weight: bold;
+		text-align: center;
+		padding-top: 2px;
+	}
+
+	.station_marker.smaller_text {
+		height: 30px;
+		font-size: 8px;
+		padding-top: 4px;
+	}
+"""
+
+script -> """
+	function replaceHtml(el, html) {
+		var oldEl = typeof el === "string" ? document.getElementById(el) : el;
+		/*@cc_on // Pure innerHTML is slightly faster in IE
+			oldEl.innerHTML = html;
+			return oldEl;
+		@*/
+		var newEl = oldEl.cloneNode(false);
+		newEl.innerHTML = html;
+		oldEl.parentNode.replaceChild(newEl, oldEl);
+		/* Since we just removed the old element from the DOM, return a reference
+		to the new element, which can be used to restore variable references. */
+		return newEl;
+	};
+"""
+coffeescript ->
+	S4 = () ->
+		return (((1+Math.random())*0x10000)|0).toString(16).substring(1)
+
+	guid = () ->
+		return S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4()
+
+	$ ->
+		socket = io.connect "/"
+
+		###
+			Our custom implementation of Backbone.sync. It will first consult
+			localStorage for model data, going to the server via socket.io if 
+			necessary. If there is data in localStorage, we immediately provide
+			it, but then tell the server all the ids we have, asking for a list
+			of any additional models. 
+		###
+		loadData = (name, ids, cb) ->
+			socket.emit "load", name: name, delta: ids
+			socket.once "data", (data) ->
+				for set of data
+					continue if set is "remove"
+					for item in data[set]
+						item.id = item._id
+						delete item._id
+				cb data
+
+		Backbone.sync = (method, model, opts) ->
+			return opts.error "Invalid operation" if method isnt "read"
+
+			data = localStorage?.getItem model.name
+			if data and modelData = JSON.parse data
+				opts.success modelData 
+
+				ids = model.pluck "id"
+				loadData model.name, ids, (data) ->
+					# Adjust our collection with relevant deltas.
+					model.add data.add if data.add?
+					model.remove data.remove if data.remove?
+
+					# Re-serialize the collection.
+					localStorage?.setItem model.name, JSON.stringify model
+
+				return
+
+			loadData model.name, false, (data) ->
+				opts.success data.all
+				localStorage?.setItem model.name, JSON.stringify model
+
+		Station = Backbone.Model.extend()
+
+		StationList = Backbone.Collection.extend
+			model: Station
+			name: "stations"
+
+		StationInfoOverlay = (options) ->
+			@setValues options
+			return @
+
+		StationInfoOverlay.prototype = new google.maps.OverlayView
+
+		StationInfoOverlay.prototype.addStation = (text, pos, id) ->
+			@stations.push text: text, pos: pos, id: id
+
+		StationInfoOverlay.prototype.refresh =->
+			@draw() if @added
+
+		MapView = Backbone.View.extend
+			tagName: "div"
+
+			initialize:->
+				@model.bind "reset", @addAllStations, @
+				@model.bind "add", @addAllStations, @
+				@model.bind "remove", @removeStation, @
+
+				latlng = new google.maps.LatLng -27.466369, 153.029597
+				options = 
+						zoom: 16
+						center: latlng
+						mapTypeId: google.maps.MapTypeId.ROADMAP
+				@map = new google.maps.Map @el, options
+				new google.maps.BicyclingLayer().setMap @map
+
+				# Set up our additional overlay view (station info)
+				#@stationInfoOverlay = new StationInfoOverlay
+				#	map: @map
+
+				@_setupOverlay()
+
+				$(@el).attr "id", "map_canvas"
+
+			_setupOverlay:->
+				@overlayEl = document.createElement "div"
+				$(".station_marker").live "click", (ev) =>
+					@trigger "click:station", $(ev.target).data "stationid"
+
+				@overlay = new google.maps.OverlayView
+				@overlay.onAdd = =>
+					@overlay.added = true
+					@overlay.getPanes().overlayImage.appendChild @overlayEl
+
+				@overlay.draw = =>
+					return if not @overlay.added
+					str = []
+
+					projection = @overlay.getProjection()
+					@model.forEach (station) =>
+						latlng = new google.maps.LatLng station.get("lat"), station.get("long")
+						pos = projection.fromLatLngToDivPixel latlng
+						str.push "<div class='station_marker"
+						str.push " smaller_text" if station.get("number") >= 100
+						str.push "' style='left: "
+						str.push pos.x-10
+						str.push "px; top: "
+						str.push pos.y-34
+						str.push "px;' data-stationid='"
+						str.push station.id
+						str.push "'>"
+						str.push station.get("number")
+						str.push "</div>"
+
+					@overlayEl = replaceHtml @overlayEl, str.join ""
+
+				@overlay.setMap @map
+
+			render:->
+				return @
+			
+			addAllStations: (stations) ->
+				@addStation station for station in stations.models
+				#@stationInfoOverlay.refresh()
+
+			addStation: (station) ->
+				###
+				marker = new google.maps.Marker
+					position: pos
+					map: @map
+					flat: true
+				###
+				#@stationInfoOverlay.addStation station.get("number"), pos, station.id
+
+		StationDataView = Backbone.View.extend
+			tagName: "div"
+
+			initialize:->
+				@$el = $ @el
+			render:->
+				@$el
+					.attr("id", "station_info_pane")
+					.css
+						bottom: "-200px"
+				return @
+
+			load: (stationId) ->
+				socket.emit "status", { id: stationId }
+
+				socket.once "statusdata", (data) ->
+					console.log data
+
+			show:->
+				@$el.animate {
+					bottom: "0px"
+				}, {
+					duration: 200
+					easing: "easeOutExpo"
+					complete: () ->
+						$("#map_canvas").css
+							height: "#{$(window).height() - 200}px"
+					}
+			hide:->
+				$("#map_canvas").css
+					height: "#{$(window).height()}px"
+
+				@$el.animate {
+					bottom: "-300px"
+				}, {
+					duration: 200
+					easing: "easeInExpo"
+				}
+
+		AppView = Backbone.View.extend
+			el: $ "body"
+
+			events:
+				"keydown": "hideStationInfo",
+
+			initialize:->
+				$(window).resize () =>
+					@layout()
+
+				@stations = new StationList
+
+				@stationDataView = new StationDataView
+
+				@mapView = new MapView
+					model: @stations
+
+				@mapView.bind "click:station", (id) =>
+					@showStationInfo id
+
+				@stations.fetch()
+
+				@render()
+				@layout()
+
+			render:->
+				@el.append @mapView.render().el
+				@el.append @stationDataView.render().el
+			
+			layout:->
+				mapWidth = $(window).width()
+				mapHeight = $(window).height()
+				mapHeight -= 200 if @infoPaneOpen
+
+				$(@mapView.el).css
+					width: mapWidth
+					height: mapHeight
+
+			showStationInfo: (id) ->
+				@infoPaneOpen = true
+				@stationDataView.load id
+				@stationDataView.show()
+
+			hideStationInfo: (e) ->
+				if e.keyCode is 27
+					@stationDataView.hide()
+					@infoPaneOpen = false
+				
+
+		new AppView()
+
+

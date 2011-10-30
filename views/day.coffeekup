@@ -1,0 +1,54 @@
+script src: "/js/lib/highchart.min.js"
+
+script ->
+	"""
+		var station = #{@station.number};
+		var stationName = "#{@station.address}";
+	"""
+coffeescript ->
+	$ ->
+		Highcharts.setOptions
+			global:
+				useUTC: false
+
+		$.get "/station/#{station}/day.json", (data) ->
+				chart = new Highcharts.Chart
+					chart:
+						renderTo: "chart"
+						zoomType: "x"
+						events:
+							load: ->
+								this.get("available").data.each (p, i, arr) ->
+									if i is 0 or i is arr.length-1 or p.y isnt arr[i-1].y or p.y isnt arr[i + 1].y
+										p.update
+											marker:
+												radius: 4
+
+					title:
+						text: stationName
+
+					xAxis:
+						type: "datetime"
+
+					plotOptions:
+						series:
+							marker:
+								radius: 0
+								states:
+									hover:
+										enabled: true
+										radius: 5											
+
+					series: [
+						{
+							id: "available"
+							name: "Available Bikes"
+							data: data.available
+							type: "spline"
+						}
+					]
+
+					
+							
+
+div id: "chart"

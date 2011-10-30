@@ -1,0 +1,16 @@
+doctype 5
+
+html ->
+	head ->
+		meta charset: "utf-8"
+		title "City Cycle Data"
+
+		script src: "/js/lib/json2.js"
+		script src: "/js/lib/sugar.min.js"
+		script src: "/js/lib/jquery.min.js"
+		script src: "/js/lib/underscore.min.js"
+		script src: "/js/lib/backbone.min.js"
+		script src: "/js/lib/jquery.easing.js"
+	
+	body ->
+		@body

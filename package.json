@@ -9,6 +9,8 @@
 	"mongoose": "2.3.7",
 	"request": "2.1.1",
 	"sugar": "0.9.5",
-	"coffee-script": "1.1.2"
+	"coffee-script": "1.1.2",
+	"express": "2.5.0",
+	"coffeekup": "0.3.1"
   }
 }
