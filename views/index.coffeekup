@@ -1,50 +1,6 @@
+script src: "/js/lib/highchart.min.js"
 script src: "/socket.io/socket.io.js"
 script src: "http://maps.googleapis.com/maps/api/js?sensor=false"
-
-style """
-	html, body {
-		height: 100%;
-		margin: 0;
-		padding: 0;
-	}
-
-	#map_canvas {
-		position: fixed;
-		left: 0;
-		top: 0;
-		width: 100%;
-		height: 100%;
-		z-index: 1;
-	}
-
-	#station_info_pane {
-		position: fixed;
-		bottom: 0;
-		left: 0;
-		width: 100%;
-		height: 200px;
-		background-color: white;
-		z-index: 2;
-	}
-
-	.station_marker {
-		width: 20px;
-		height: 32px;
-		background-image: url(/images/marker.png);
-		position: absolute;
-		font-size: 12px;
-		font-family: Times New Roman;
-		font-weight: bold;
-		text-align: center;
-		padding-top: 2px;
-	}
-
-	.station_marker.smaller_text {
-		height: 30px;
-		font-size: 8px;
-		padding-top: 4px;
-	}
-"""
 
 script -> """
 	function replaceHtml(el, html) {
@@ -61,6 +17,7 @@ script -> """
 		return newEl;
 	};
 """
+
 coffeescript ->
 	S4 = () ->
 		return (((1+Math.random())*0x10000)|0).toString(16).substring(1)
@@ -207,18 +164,66 @@ coffeescript ->
 
 			initialize:->
 				@$el = $ @el
+
+				Highcharts.setOptions
+					global:
+						useUTC: false
+
 			render:->
 				@$el
 					.attr("id", "station_info_pane")
 					.css
 						bottom: "-200px"
+
+				@$el.append $ "<div class='spinner'></div>"
+
+				@$chartContainer = $ "<div class='chart'></div>"
+				@$el.append @$chartContainer
+
 				return @
 
-			load: (stationId) ->
-				socket.emit "status", { id: stationId }
+			load: (station) ->
+				socket.emit "status", { id: station.id }
 
-				socket.once "statusdata", (data) ->
-					console.log data
+				@$el.addClass "loading"
+
+				socket.once "statusdata", (data) =>
+					@$el.removeClass "loading"
+					chart = new Highcharts.Chart
+						chart:
+							renderTo: @$chartContainer[0]
+							zoomType: "x"
+							events:
+								load: ->
+									this.get("available").data.each (p, i, arr) ->
+										if i is 0 or i is arr.length-1 or p.y isnt arr[i-1].y or p.y isnt arr[i + 1].y
+											p.update
+												marker:
+													radius: 4
+
+						title:
+							text: station.get "name"
+
+						xAxis:
+							type: "datetime"
+
+						plotOptions:
+							series:
+								marker:
+									radius: 0
+									states:
+										hover:
+											enabled: true
+											radius: 5											
+
+						series: [
+							{
+								id: "available"
+								name: "Available Bikes"
+								data: data
+								type: "spline"
+							}
+						]
 
 			show:->
 				@$el.animate {
@@ -259,7 +264,7 @@ coffeescript ->
 					model: @stations
 
 				@mapView.bind "click:station", (id) =>
-					@showStationInfo id
+					@showStationInfo @stations.get id
 
 				@stations.fetch()
 

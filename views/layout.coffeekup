@@ -12,5 +12,7 @@ html ->
 		script src: "/js/lib/backbone.min.js"
 		script src: "/js/lib/jquery.easing.js"
 	
+		link rel: "stylesheet", href: "/css/style.css"
+
 	body ->
 		@body

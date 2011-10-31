@@ -16,6 +16,11 @@ app.register '.coffeekup', require('coffeekup').adapters.express
 
 io = require("socket.io").listen app
 
+app.use express.compiler
+	src: path.resolve __dirname, "..", "webroot"
+	dest: path.resolve __dirname, "..", "webroot"
+	enable: ["less"]
+
 app.use express.static path.resolve __dirname, "..", "webroot"
 
 app.get "/", (req, res) ->
@@ -36,8 +41,8 @@ app.get "/station/:station/day.json", (req, res) ->
 			console.time "status"
 			StationStatus
 				.find({ station: station._id })
-				.where("time")
-					.gte(new Date().resetTime())
+				#.where("time")
+				#	.gte(new Date().resetTime())
 				.exec cb
 	], (err, samples) ->
 		console.timeEnd "status"
@@ -76,7 +81,7 @@ io.sockets.on "connection", (socket) ->
 			.find({ station: msg.id })
 			.where("time")
 				.gte(new Date().resetTime())
-			.exec (samples) ->
+			.exec (err, samples) ->
 				data = []
 				data.push [sample.time.getTime(), sample.available] for sample in samples
 				console.log data
