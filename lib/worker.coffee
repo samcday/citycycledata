@@ -37,6 +37,8 @@ scrapeStations = () ->
                     console.error "Malformed response for station ##{station.number}: ", err
                     return cb()
 
+
+
                 stationStatus = new StationStatus
 
                 stationStatus.station = station._id
@@ -44,6 +46,13 @@ scrapeStations = () ->
                 stationStatus.free = parseInt freeEl.innerHTML
                 stationStatus.total = parseInt totalEl.innerHTML
                 stationStatus.ticket = doc?.getElementsByTagName?("ticket")?[0] ? true : false
+
+
+                # If there's no available spots, used spots, or spots at all, then the station is
+                # still closed, don't bother saving the data.
+                if stationStatus.available is 0 and stationStatus.free is 0 and stationStatus.total is 0
+                    return cb()
+
 
                 stationStatus.save (err) ->
                     return cb err if err?
