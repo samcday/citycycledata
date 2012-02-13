@@ -52,7 +52,7 @@ module.exports = (cleanup) ->
                 return cb err if err?
                 console.log "Saved new sample for station ##{station.number}"
                 cb()
-    , 5
+    , process.env.SCRAPE_CONCURRENCY or 5
 
     Station.find {}, ["number"], (err, stations) ->
         console.log "Scraping data for #{stations.length} stations."
