@@ -1,0 +1,1 @@
+exports.baseURL = "http://www.citycycle.com.au/service/"
