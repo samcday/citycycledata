@@ -1,7 +1,7 @@
 sugar = require "sugar"
 mongoose = require "mongoose"
 
-mongoose.connect process.env.MONGOLAB_URI or "mongodb://localhost/citycycledata"
+mongoose.connect process.env.MONGOLAB_URI or "mongodb://localhost/citycycle"
 
 cleanup = () ->
 	mongoose.disconnect()
